@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { getProfile } from "@/lib/local-store";
 import { TreeArt } from "@/components/TreeArt";
-import { TREE_STAGES, stageForPlantedDate, nextStageProgress, diffDays, todayISO } from "@/lib/focus";
+import { TREE_STAGES, stageForStreak, nextStageProgress } from "@/lib/focus";
 import { Sparkles, Flame, CheckCircle2, Lock } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/tree")({
@@ -15,17 +15,12 @@ function TreePage() {
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
     enabled: !!user,
-    queryFn: async () => {
-      const { data } = await supabase.from("profiles").select("*").eq("id", user!.id).maybeSingle();
-      return data;
-    },
+    queryFn: () => getProfile(),
   });
 
-  const plantedAt = (profile?.tree_planted_at as string) ?? todayISO();
-  const daysSincePlanted = Math.max(0, diffDays(plantedAt, todayISO()));
   const streak = profile?.current_streak ?? 0;
-  const stage = stageForPlantedDate(plantedAt);
-  const prog = nextStageProgress(daysSincePlanted);
+  const stage = stageForStreak(streak);
+  const prog = nextStageProgress(streak);
 
   return (
     <div className="p-4 sm:p-8 max-w-6xl mx-auto">
@@ -33,14 +28,13 @@ function TreePage() {
         <div>
           <h1 className="text-3xl sm:text-4xl font-display font-bold">Sizning daraxtingiz</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Ekilgan kundan boshlab har kuni o'sadi. Fokus qiling — daraxt gullasin!
+            Har kuni fokus qiling — daraxt streak bo'yicha o'sadi!
           </p>
         </div>
         <div className="glass rounded-2xl px-4 py-2 flex items-center gap-3 text-sm flex-wrap">
           <Flame className="w-4 h-4 text-primary" />
-          <span><b>{daysSincePlanted}</b> kun o'sdi</span>
-          <span className="text-muted-foreground">· {streak} kun streak</span>
-          {plantedAt && <span className="text-muted-foreground">· ekilgan: {plantedAt}</span>}
+          <span><b>{streak}</b> kun streak</span>
+          <span className="text-muted-foreground">· bosqich {stage + 1}/{TREE_STAGES.length}</span>
         </div>
       </div>
 
@@ -60,7 +54,7 @@ function TreePage() {
                     <div className="h-full bg-primary transition-all" style={{ width: `${prog.pct}%` }} />
                   </div>
                   <div className="text-xs text-muted-foreground mt-2">
-                    Keyingi bosqich uchun yana <b>{prog.next - daysSincePlanted}</b> kun kerak
+                    Keyingi bosqich uchun yana <b>{prog.next - streak}</b> kun streak kerak
                   </div>
                 </div>
               )}
@@ -74,7 +68,7 @@ function TreePage() {
           </div>
           <div className="space-y-2">
             {TREE_STAGES.map((s, i) => {
-              const reached = daysSincePlanted >= s.threshold;
+              const reached = streak >= s.threshold;
               const current = i === stage;
               return (
                 <div key={s.name}
@@ -84,7 +78,7 @@ function TreePage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium">{s.name}</div>
-                    <div className="text-[11px] text-muted-foreground">{s.threshold}+ kun</div>
+                    <div className="text-[11px] text-muted-foreground">{s.threshold}+ kun streak</div>
                   </div>
                   {reached ? (
                     <CheckCircle2 className="w-4 h-4 text-primary" />
