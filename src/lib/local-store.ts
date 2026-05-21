@@ -226,7 +226,6 @@ export function getWeekStats(): { date: string; label: string; minutes: number; 
   return days;
 }
 
-/** Kunlik fokus sessiyasini yozadi — streak va daraxt yangilanadi */
 export function recordFocusSession(minutes: number): Profile {
   const data = loadRaw()!;
   const today = todayISO();
@@ -272,13 +271,11 @@ export function recordFocusSession(minutes: number): Profile {
   return p;
 }
 
-/** Barcha ma'lumotlarni o'chiradi (sozlamalardagi "o'chirish") */
 export function deleteAllUserData(): void {
   localStorage.removeItem(DATA_KEY);
   getUserId();
 }
 
-/** Rasmni base64 sifatida saqlash (offline) */
 export function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

@@ -3,7 +3,6 @@ import { getUserId, getProfile } from "@/lib/local-store";
 
 interface LocalUser {
   id: string;
-  email?: string;
 }
 
 interface AuthContextType {

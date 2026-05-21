@@ -1,14 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import {
-  getBooks,
-  addBook,
-  updateBook,
-  removeBook,
-  fileToDataUrl,
-} from "@/lib/local-store";
 import { Plus, BookOpen, Trash2, Upload, Link2, X, BookMarked } from "lucide-react";
 import { toast } from "sonner";
 
@@ -31,21 +25,34 @@ function LibraryPage() {
   const { data: books = [], isLoading } = useQuery({
     queryKey: ["books", user?.id],
     enabled: !!user?.id,
-    queryFn: () => getBooks(),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("books")
+        .select("*")
+        .eq("user_id", user!.id)
+        .order("created_at", { ascending: false });
+      if (error) {
+        console.error("Books query error:", error.message);
+        return [];
+      }
+      return data ?? [];
+    },
   });
 
-  function remove(id: string) {
-    removeBook(id);
-    qc.invalidateQueries({ queryKey: ["books", user?.id] });
+  async function remove(id: string) {
+    const { error } = await supabase.from("books").delete().eq("id", id).eq("user_id", user!.id);
+    if (error) { toast.error(error.message); return; }
+    qc.invalidateQueries({ queryKey: ["books", user!.id] });
     toast.success("Kitob o'chirildi");
   }
 
-  function updateStatus(id: string, status: string) {
-    updateBook(id, { status });
-    qc.invalidateQueries({ queryKey: ["books", user?.id] });
+  async function updateStatus(id: string, status: string) {
+    const { error } = await supabase.from("books").update({ status }).eq("id", id).eq("user_id", user!.id);
+    if (error) { toast.error(error.message); return; }
+    qc.invalidateQueries({ queryKey: ["books", user!.id] });
   }
 
-  const filtered = statusFilter === "all" ? books : books.filter((b) => b.status === statusFilter);
+  const filtered = statusFilter === "all" ? books : books.filter((b: any) => b.status === statusFilter);
 
   return (
     <div className="p-4 sm:p-8 max-w-6xl mx-auto">
@@ -67,6 +74,7 @@ function LibraryPage() {
         </button>
       </div>
 
+      {/* Status filter */}
       <div className="flex gap-2 mb-5 flex-wrap">
         {(["all", "reading", "done", "want"] as const).map((s) => (
           <button
@@ -76,7 +84,7 @@ function LibraryPage() {
           >
             {s === "all" ? "Hammasi" : STATUS_LABELS[s]}
             <span className="ml-1.5 opacity-70">
-              {s === "all" ? books.length : books.filter((b) => b.status === s).length}
+              {s === "all" ? books.length : books.filter((b: any) => b.status === s).length}
             </span>
           </button>
         ))}
@@ -103,7 +111,7 @@ function LibraryPage() {
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {filtered.map((b) => (
+          {filtered.map((b: any) => (
             <div key={b.id} className="group relative">
               <div className="aspect-[2/3] rounded-xl overflow-hidden bg-muted border border-border relative">
                 {b.cover_url ? (
@@ -114,9 +122,11 @@ function LibraryPage() {
                     <div className="text-xs font-display font-semibold line-clamp-3">{b.title}</div>
                   </div>
                 )}
+                {/* Status badge */}
                 <div className={`absolute top-2 left-2 px-2 py-0.5 rounded-full text-[9px] font-semibold ${b.status === "done" ? "bg-green-500/90 text-white" : b.status === "reading" ? "bg-primary/90 text-primary-foreground" : "bg-muted/90 text-muted-foreground"}`}>
                   {STATUS_LABELS[b.status] || b.status}
                 </div>
+                {/* Actions overlay */}
                 <div className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 transition flex flex-col items-center justify-center gap-2">
                   <select
                     value={b.status}
@@ -147,15 +157,16 @@ function LibraryPage() {
         <AddBookModal
           onClose={() => {
             setOpen(false);
-            qc.invalidateQueries({ queryKey: ["books", user?.id] });
+            qc.invalidateQueries({ queryKey: ["books", user!.id] });
           }}
+          userId={user!.id}
         />
       )}
     </div>
   );
 }
 
-function AddBookModal({ onClose }: { onClose: () => void }) {
+function AddBookModal({ onClose, userId }: { onClose: () => void; userId: string }) {
   const [title, setTitle] = useState("");
   const [author, setAuthor] = useState("");
   const [coverUrl, setCoverUrl] = useState("");
@@ -170,19 +181,26 @@ function AddBookModal({ onClose }: { onClose: () => void }) {
     try {
       let cover = coverUrl.trim() || null;
       if (mode === "upload" && file) {
-        try {
-          cover = await fileToDataUrl(file);
-        } catch {
+        const ext = file.name.split(".").pop() || "jpg";
+        const path = `${userId}/${crypto.randomUUID()}.${ext}`;
+        const { error: uploadError } = await supabase.storage.from("book-covers").upload(path, file);
+        if (uploadError) {
+          // Muqova yuklanmasa ham kitob qo'shiladi (muqovasiz)
           toast.warning("Muqova yuklanmadi, kitob muqovasiz saqlanmoqda");
           cover = null;
+        } else {
+          const { data } = supabase.storage.from("book-covers").getPublicUrl(path);
+          cover = data.publicUrl;
         }
       }
-      addBook({
+      const { error } = await supabase.from("books").insert({
+        user_id: userId,
         title: title.trim(),
         author: author.trim() || null,
         cover_url: cover,
         status,
       });
+      if (error) throw error;
       toast.success("Kitob qo'shildi!");
       onClose();
     } catch (e: any) {
