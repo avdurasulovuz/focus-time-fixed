@@ -1,10 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { recordFocusSession, getProfile, getTodayFocusMinutes } from "@/lib/local-store";
-import { stageForStreak, nextStageProgress, TREE_STAGES } from "@/lib/focus";
-import { TreeArt } from "@/components/TreeArt";
+import { recordFocusSession, stageForPlantedDate, nextStageProgress, TREE_STAGES, todayISO, diffDays } from "@/lib/focus";
 import { Play, Pause, RotateCcw, Coffee, Brain, Moon, Flame, Target, Trophy } from "lucide-react";
 import { toast } from "sonner";
 
@@ -22,10 +21,18 @@ function PomodoroPage() {
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
     enabled: !!user?.id,
-    queryFn: () => getProfile(),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user!.id)
+        .single();
+      if (error) throw error;
+      return data;
+    },
   });
 
-  const settings = profile?.settings || {
+  const settings = (profile?.settings as any) || {
     focus: 25, short: 5, long: 15, interval: 4, sound: true, autobreak: false,
   };
 
@@ -64,15 +71,17 @@ function PomodoroPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running, mode]);
 
-  function onDone() {
+  async function onDone() {
     setRunning(false);
     if (settings.sound) playBell();
     if (mode === "focus") {
       const minutes = focusMinutes;
-      recordFocusSession(minutes);
-      qc.invalidateQueries({ queryKey: ["profile"] });
-      qc.invalidateQueries({ queryKey: ["weekStats"] });
-      qc.invalidateQueries({ queryKey: ["todayFocus"] });
+      if (user) {
+        await recordFocusSession(user.id, minutes);
+        qc.invalidateQueries({ queryKey: ["profile"] });
+        qc.invalidateQueries({ queryKey: ["weekStats"] });
+        qc.invalidateQueries({ queryKey: ["todayFocus"] });
+      }
       toast.success(`🌱 +${minutes} daqiqa fokus! Daraxtingiz o'sdi.`);
       const next = pomoCount + 1;
       setPomoCount(next);
@@ -115,15 +124,13 @@ function PomodoroPage() {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
   const pct = ((total - seconds) / total) * 100;
-  const streak = profile?.current_streak ?? 0;
-  const stage = stageForStreak(streak);
-
   return (
-    <div className="p-3 sm:p-6 max-w-6xl mx-auto pt-4">
+    <div className="p-3 sm:p-6 max-w-3xl mx-auto pt-4">
       <Header profile={profile} />
 
-      <div className="mt-4 grid lg:grid-cols-[1fr_300px] gap-4">
+      <div className="mt-4">
         <div className="glass rounded-3xl p-5 sm:p-8 text-center">
+          {/* Mode tabs */}
           <div className="flex justify-center gap-2 mb-6 flex-wrap">
             {(
               [
@@ -145,6 +152,7 @@ function PomodoroPage() {
             })}
           </div>
 
+          {/* Circle timer */}
           <div className="relative mx-auto w-[240px] sm:w-[300px] aspect-square">
             <svg viewBox="0 0 200 200" className="w-full h-full -rotate-90">
               <circle cx="100" cy="100" r="92" stroke="var(--muted)" strokeWidth="6" fill="none" />
@@ -165,6 +173,7 @@ function PomodoroPage() {
             </div>
           </div>
 
+          {/* Preset buttons */}
           <div className="flex justify-center gap-2 mt-5">
             {READ_PRESETS.map((min) => (
               <button
@@ -182,6 +191,7 @@ function PomodoroPage() {
             ))}
           </div>
 
+          {/* Buttons */}
           <div className="flex justify-center gap-3 mt-5">
             <button
               onClick={toggle}
@@ -201,6 +211,7 @@ function PomodoroPage() {
             </button>
           </div>
 
+          {/* Pomo dots */}
           <div className="flex justify-center gap-1.5 mt-5">
             {Array.from({ length: settings.interval }).map((_, i) => (
               <div
@@ -210,35 +221,21 @@ function PomodoroPage() {
             ))}
           </div>
         </div>
-
-        <div className="glass rounded-3xl p-5 flex flex-col">
-          <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1">
-            Sizning daraxtingiz
-          </div>
-          <div className="text-lg font-display font-semibold mb-2">
-            {TREE_STAGES[stage].name}
-          </div>
-          <div className="flex-1 min-h-[180px]">
-            <TreeArt stage={stage} className="w-full h-full" withGround={false} />
-          </div>
-          <div className="text-[11px] text-muted-foreground mt-2 text-center">
-            Streak: {streak} kun
-          </div>
-        </div>
       </div>
     </div>
   );
 }
 
-function Header({ profile }: { profile: ReturnType<typeof getProfile> | undefined }) {
-  const streak = profile?.current_streak ?? 0;
-  const stage = stageForStreak(streak);
-  const p = nextStageProgress(streak);
+function Header({ profile }: { profile: any }) {
+  const plantedAt = profile?.tree_planted_at as string | undefined;
+  const daysSincePlanted = plantedAt ? diffDays(plantedAt, todayISO()) : 0;
+  const stage = plantedAt ? stageForPlantedDate(plantedAt) : 0;
+  const p = nextStageProgress(Math.max(0, daysSincePlanted));
   return (
     <div className="grid gap-2 sm:grid-cols-4">
-      <Stat icon={Flame} label="Hozirgi streak" value={`${streak} kun`} accent />
+      <Stat icon={Flame} label="Hozirgi streak" value={`${profile?.current_streak ?? 0} kun`} accent />
       <Stat icon={Target} label="Bugungi fokus">
-        <TodayFocus />
+        <TodayFocus userId={profile?.id} />
       </Stat>
       <Stat icon={Trophy} label="Eng uzun streak" value={`${profile?.longest_streak ?? 0} kun`} />
       <Stat icon={Brain} label="Jami pomodoro" value={`${profile?.total_pomos ?? 0}`} />
@@ -251,7 +248,7 @@ function Header({ profile }: { profile: ReturnType<typeof getProfile> | undefine
           <div className="h-full bg-primary transition-all" style={{ width: `${p.pct}%` }} />
         </div>
         <span className="text-muted-foreground font-mono">
-          {p.next ? `${streak}/${p.next}` : "MAX"}
+          {p.next ? `${daysSincePlanted}/${p.next}` : "MAX"}
         </span>
       </div>
     </div>
@@ -269,10 +266,20 @@ function Stat({ icon: Icon, label, value, accent, children }: any) {
   );
 }
 
-function TodayFocus() {
+function TodayFocus({ userId }: { userId?: string }) {
   const { data } = useQuery({
-    queryKey: ["todayFocus"],
-    queryFn: () => getTodayFocusMinutes(),
+    queryKey: ["todayFocus", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const today = new Date().toISOString().slice(0, 10);
+      const { data } = await supabase
+        .from("daily_stats")
+        .select("focus_minutes")
+        .eq("user_id", userId!)
+        .eq("date", today)
+        .maybeSingle();
+      return data?.focus_minutes ?? 0;
+    },
   });
   return <span>{data ?? 0} daq</span>;
 }
