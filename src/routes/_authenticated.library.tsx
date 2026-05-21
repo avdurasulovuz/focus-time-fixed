@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { getBooks, addBook, updateBook, removeBook, fileToDataUrl } from "@/lib/local-store";
+import { getBooks, addBook, updateBook, removeBook, fileToDataUrl, type Book } from "@/lib/local-store";
 import { Plus, BookOpen, Trash2, Upload, Link2, X, BookMarked } from "lucide-react";
 import { toast } from "sonner";
 
@@ -98,41 +98,13 @@ function LibraryPage() {
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {filtered.map((b) => (
-            <div key={b.id} className="group relative">
-              <div className="aspect-[2/3] rounded-xl overflow-hidden bg-muted border border-border relative">
-                {b.cover_url ? (
-                  <img src={b.cover_url} alt={b.title} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center p-3 text-center bg-gradient-to-br from-primary/20 to-accent/20">
-                    <BookOpen className="w-8 h-8 text-primary mb-2" />
-                    <div className="text-xs font-display font-semibold line-clamp-3">{b.title}</div>
-                  </div>
-                )}
-                <div className={`absolute top-2 left-2 px-2 py-0.5 rounded-full text-[9px] font-semibold ${b.status === "done" ? "bg-green-500/90 text-white" : b.status === "reading" ? "bg-primary/90 text-primary-foreground" : "bg-muted/90 text-muted-foreground"}`}>
-                  {STATUS_LABELS[b.status] || b.status}
-                </div>
-                <div className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 transition flex flex-col items-center justify-center gap-2">
-                  <select
-                    value={b.status}
-                    onChange={(e) => updateStatus(b.id, e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-xs px-2 py-1 rounded-lg bg-background border border-border outline-none"
-                  >
-                    <option value="want">Rejada</option>
-                    <option value="reading">O'qilyapti</option>
-                    <option value="done">Tugallangan</option>
-                  </select>
-                  <button
-                    onClick={() => remove(b.id)}
-                    className="w-8 h-8 rounded-full bg-destructive/90 flex items-center justify-center text-white"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-              <div className="mt-2 text-sm font-medium line-clamp-1">{b.title}</div>
-              {b.author && <div className="text-xs text-muted-foreground line-clamp-1">{b.author}</div>}
-            </div>
+            <BookCard
+              key={b.id}
+              book={b}
+              onRemove={() => remove(b.id)}
+              onStatusChange={(status) => updateStatus(b.id, status)}
+              onPagesChange={() => qc.invalidateQueries({ queryKey: ["books", user?.id] })}
+            />
           ))}
         </div>
       )}
@@ -149,6 +121,134 @@ function LibraryPage() {
   );
 }
 
+function BookCard({
+  book,
+  onRemove,
+  onStatusChange,
+  onPagesChange,
+}: {
+  book: Book;
+  onRemove: () => void;
+  onStatusChange: (status: string) => void;
+  onPagesChange: () => void;
+}) {
+  const [alert, setAlert] = useState(false);
+  const prevRead = useRef(book.pages_read);
+
+  function setPagesRead(val: number) {
+    const next = Math.max(0, val);
+    if (next < prevRead.current) {
+      setAlert(true);
+      setTimeout(() => setAlert(false), 2500);
+    }
+    prevRead.current = next;
+    updateBook(book.id, { pages_read: next });
+    onPagesChange();
+  }
+
+  function setTotalPages(val: number) {
+    updateBook(book.id, { total_pages: Math.max(0, val) });
+    onPagesChange();
+  }
+
+  const pct =
+    book.total_pages > 0
+      ? Math.min(100, Math.round((book.pages_read / book.total_pages) * 100))
+      : null;
+
+  return (
+    <div className="group relative">
+      <div
+        className={`aspect-[2/3] rounded-xl overflow-hidden bg-muted border relative transition-colors duration-300 ${
+          alert ? "border-destructive ring-2 ring-destructive/60" : "border-border"
+        }`}
+      >
+        {book.cover_url ? (
+          <img src={book.cover_url} alt={book.title} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center p-3 text-center bg-gradient-to-br from-primary/20 to-accent/20">
+            <BookOpen className="w-8 h-8 text-primary mb-2" />
+            <div className="text-xs font-display font-semibold line-clamp-3">{book.title}</div>
+          </div>
+        )}
+        <div
+          className={`absolute top-2 left-2 px-2 py-0.5 rounded-full text-[9px] font-semibold ${
+            book.status === "done"
+              ? "bg-green-500/90 text-white"
+              : book.status === "reading"
+                ? "bg-primary/90 text-primary-foreground"
+                : "bg-muted/90 text-muted-foreground"
+          }`}
+        >
+          {STATUS_LABELS[book.status] || book.status}
+        </div>
+        <div className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 transition flex flex-col items-center justify-center gap-2">
+          <select
+            value={book.status}
+            onChange={(e) => onStatusChange(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            className="text-xs px-2 py-1 rounded-lg bg-background border border-border outline-none"
+          >
+            <option value="want">Rejada</option>
+            <option value="reading">O'qilyapti</option>
+            <option value="done">Tugallangan</option>
+          </select>
+          <button
+            onClick={onRemove}
+            className="w-8 h-8 rounded-full bg-destructive/90 flex items-center justify-center text-white"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+      <div className="mt-2 text-sm font-medium line-clamp-1">{book.title}</div>
+      {book.author && <div className="text-xs text-muted-foreground line-clamp-1">{book.author}</div>}
+
+      <div
+        className={`mt-2 p-2 rounded-xl border text-xs transition-colors duration-300 ${
+          alert
+            ? "bg-destructive/20 border-destructive text-destructive"
+            : "bg-muted/30 border-border"
+        }`}
+      >
+        <div className="flex items-center justify-between gap-1 mb-1.5">
+          <span className="text-muted-foreground">Varoqlar</span>
+          {alert && <span className="font-semibold animate-pulse">Kamaydi!</span>}
+        </div>
+        <div className="flex items-center gap-1">
+          <input
+            type="number"
+            min={0}
+            value={book.pages_read || ""}
+            onChange={(e) => setPagesRead(Number(e.target.value) || 0)}
+            className={`w-12 px-1 py-0.5 rounded-md bg-input border text-center font-mono ${
+              alert ? "border-destructive" : "border-border"
+            }`}
+            title="O'qilgan"
+          />
+          <span className="text-muted-foreground">/</span>
+          <input
+            type="number"
+            min={0}
+            value={book.total_pages || ""}
+            onChange={(e) => setTotalPages(Number(e.target.value) || 0)}
+            className="w-12 px-1 py-0.5 rounded-md bg-input border border-border text-center font-mono"
+            title="Jami"
+          />
+        </div>
+        {pct != null && (
+          <div className="mt-1.5 h-1 bg-muted rounded-full overflow-hidden">
+            <div
+              className={`h-full transition-all ${alert ? "bg-destructive" : "bg-primary"}`}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function AddBookModal({ onClose }: { onClose: () => void }) {
   const [title, setTitle] = useState("");
   const [author, setAuthor] = useState("");
@@ -156,6 +256,7 @@ function AddBookModal({ onClose }: { onClose: () => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [mode, setMode] = useState<"upload" | "url">("upload");
   const [status, setStatus] = useState("reading");
+  const [totalPages, setTotalPages] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function submit() {
@@ -171,6 +272,8 @@ function AddBookModal({ onClose }: { onClose: () => void }) {
         author: author.trim() || null,
         cover_url: cover,
         status,
+        total_pages: Number(totalPages) || 0,
+        pages_read: 0,
       });
       toast.success("Kitob qo'shildi!");
       onClose();
@@ -209,6 +312,14 @@ function AddBookModal({ onClose }: { onClose: () => void }) {
             placeholder="Muallif"
             className="w-full px-4 py-2.5 rounded-xl bg-input border border-border focus:border-primary outline-none text-sm"
           />
+          <input
+            type="number"
+            min={0}
+            value={totalPages}
+            onChange={(e) => setTotalPages(e.target.value)}
+            placeholder="Jami varoqlar"
+            className="w-full px-4 py-2.5 rounded-xl bg-input border border-border focus:border-primary outline-none text-sm"
+          />
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value)}
@@ -242,9 +353,7 @@ function AddBookModal({ onClose }: { onClose: () => void }) {
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)}
                 className="w-full text-xs file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-muted file:text-foreground file:text-xs cursor-pointer"
               />
-              {file && (
-                <p className="text-xs text-primary mt-1">✓ {file.name}</p>
-              )}
+              {file && <p className="text-xs text-primary mt-1">✓ {file.name}</p>}
             </div>
           ) : (
             <input

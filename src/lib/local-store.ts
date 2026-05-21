@@ -1,4 +1,5 @@
 import { todayISO, diffDays, stageForStreak } from "@/lib/focus";
+import { getStoredTheme } from "@/lib/themes";
 
 const DATA_KEY = "focus-time-data-v1";
 
@@ -10,6 +11,7 @@ export interface PomodoroSettings {
   sound: boolean;
   autobreak: boolean;
   dailyGoalMinutes: number;
+  theme?: string;
 }
 
 export interface Profile {
@@ -41,6 +43,8 @@ export interface Book {
   author: string | null;
   cover_url: string | null;
   status: string;
+  total_pages: number;
+  pages_read: number;
   created_at: string;
 }
 
@@ -66,6 +70,7 @@ const DEFAULT_SETTINGS: PomodoroSettings = {
   sound: true,
   autobreak: false,
   dailyGoalMinutes: 60,
+  theme: "forest",
 };
 
 function newId() {
@@ -132,6 +137,10 @@ export function getProfile(): Profile {
     data.profile.tree_planted_at = todayISO();
     saveRaw(data);
   }
+  if (!data.profile.settings.theme) {
+    data.profile.settings.theme = getStoredTheme();
+    saveRaw(data);
+  }
   return data.profile;
 }
 
@@ -174,7 +183,15 @@ export function removeTask(id: string): void {
 }
 
 export function getBooks(): Book[] {
-  return loadRaw()?.books ?? [];
+  const data = loadRaw();
+  if (!data) return [];
+  let changed = false;
+  for (const b of data.books) {
+    if (b.total_pages == null) { b.total_pages = 0; changed = true; }
+    if (b.pages_read == null) { b.pages_read = 0; changed = true; }
+  }
+  if (changed) saveRaw(data);
+  return data.books;
 }
 
 export function addBook(book: Omit<Book, "id" | "user_id" | "created_at">): Book {
@@ -183,6 +200,8 @@ export function addBook(book: Omit<Book, "id" | "user_id" | "created_at">): Book
     id: newId(),
     user_id: data.profile.id,
     created_at: new Date().toISOString(),
+    total_pages: 0,
+    pages_read: 0,
     ...book,
   };
   data.books.unshift(b);

@@ -2,7 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { getProfile, getWeekStats } from "@/lib/local-store";
-import { BarChart3, Flame, Clock, Brain, Trophy, Timer } from "lucide-react";
+import { BarChart3, Flame, Clock, Brain, Trophy, Timer, PieChart as PieChartIcon } from "lucide-react";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 
 export const Route = createFileRoute("/_authenticated/stats")({
   component: StatsPage,
@@ -27,6 +28,18 @@ function StatsPage() {
   const weekTotal = week.reduce((s, d) => s + d.minutes, 0);
   const weekPomos = week.reduce((s, d) => s + d.pomos, 0);
   const hasAnyData = (profile?.total_pomos ?? 0) > 0;
+  const pieData = week
+    .filter((d) => d.minutes > 0)
+    .map((d) => ({ name: d.label, value: d.minutes }));
+  const PIE_COLORS = [
+    "var(--primary)",
+    "var(--accent)",
+    "var(--leaf)",
+    "oklch(0.65 0.14 200)",
+    "oklch(0.7 0.16 55)",
+    "oklch(0.6 0.12 300)",
+    "oklch(0.72 0.1 350)",
+  ];
 
   if (profileLoading || weekLoading) {
     return (
@@ -112,6 +125,49 @@ function StatsPage() {
               Pomodoroga o'tish
             </Link>
           </div>
+        )}
+      </div>
+
+      <div className="glass rounded-3xl p-6 mb-4">
+        <div className="flex items-center gap-2 mb-4">
+          <PieChartIcon className="w-5 h-5 text-primary" />
+          <h2 className="font-display font-semibold text-lg">Haftalik taqsimot</h2>
+        </div>
+        {pieData.length > 0 ? (
+          <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={pieData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={52}
+                  outerRadius={88}
+                  paddingAngle={3}
+                  dataKey="value"
+                  nameKey="name"
+                >
+                  {pieData.map((_, i) => (
+                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} stroke="transparent" />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(v: number) => [`${v} daq`, "Fokus"]}
+                  contentStyle={{
+                    background: "var(--card)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "12px",
+                    color: "var(--foreground)",
+                  }}
+                />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground text-center py-8">
+            Bu hafta hali fokus daqiqalari yo'q
+          </p>
         )}
       </div>
 

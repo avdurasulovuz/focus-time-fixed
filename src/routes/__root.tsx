@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/contexts/auth-context";
+import { ThemeProvider } from "@/contexts/theme-context";
 
 import appCss from "../styles.css?url";
 
@@ -54,13 +55,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-      { title: "Focus Time — Pomodoro, Vazifalar va O'sayotgan Daraxt" },
-      { name: "description", content: "Fokusda ishlang, daraxtingizni o'stiring. Pomodoro, vazifalar, shaxsiy kutubxona va statistikalar." },
+      { title: "Focus Time" },
+      { name: "description", content: "Pomodoro va fokus ilovasi" },
       { name: "theme-color", content: "#1a3a26" },
-      { property: "og:title", content: "Focus Time — Pomodoro, Vazifalar va O'sayotgan Daraxt" },
-      { name: "twitter:title", content: "Focus Time — Pomodoro, Vazifalar va O'sayotgan Daraxt" },
-      { property: "og:description", content: "Fokusda ishlang, daraxtingizni o'stiring. Pomodoro, vazifalar, shaxsiy kutubxona va statistikalar." },
-      { name: "twitter:description", content: "Fokusda ishlang, daraxtingizni o'stiring. Pomodoro, vazifalar, shaxsiy kutubxona va statistikalar." },
+      { property: "og:title", content: "Focus Time" },
+      { name: "twitter:title", content: "Focus Time" },
+      { property: "og:description", content: "Pomodoro va fokus ilovasi" },
+      { name: "twitter:description", content: "Pomodoro va fokus ilovasi" },
       { name: "twitter:card", content: "summary_large_image" },
       { property: "og:type", content: "website" },
     ],
@@ -77,10 +78,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   errorComponent: ErrorComponent,
 });
 
+const themeBootScript = `(function(){try{var k="focus-time-theme";var t=localStorage.getItem(k)||"forest";var ok=["forest","ocean","sunset","midnight","sakura"];if(ok.indexOf(t)<0)t="forest";document.documentElement.setAttribute("data-theme",t);}catch(e){document.documentElement.setAttribute("data-theme","forest");}})();`;
+
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="uz">
+    <html lang="uz" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
         <HeadContent />
       </head>
       <body>
@@ -96,8 +100,10 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <Outlet />
-        <Toaster position="top-center" richColors />
+        <ThemeProvider>
+          <Outlet />
+          <Toaster position="top-center" richColors />
+        </ThemeProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

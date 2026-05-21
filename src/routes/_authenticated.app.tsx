@@ -179,10 +179,10 @@ function PomodoroPage() {
             ))}
           </div>
 
-          <div className="flex justify-center gap-3 mt-5">
+          <div className="flex justify-center items-center gap-3 mt-5 w-full max-w-xs mx-auto -translate-x-2 sm:-translate-x-3">
             <button
               onClick={toggle}
-              className="px-8 py-3 rounded-full bg-primary text-primary-foreground font-semibold flex items-center gap-2 hover:opacity-90 transition"
+              className="px-8 py-3 rounded-full bg-primary text-primary-foreground font-semibold flex items-center gap-2 hover:opacity-90 transition shadow-md shadow-primary/20"
             >
               {running ? (
                 <><Pause className="w-4 h-4" /> To'xtat</>

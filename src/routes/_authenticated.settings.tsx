@@ -3,7 +3,9 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { getProfile, updateProfile, fileToDataUrl, deleteAllUserData } from "@/lib/local-store";
-import { Settings as SettingsIcon, User as UserIcon, Save, Camera, LogOut } from "lucide-react";
+import { useTheme } from "@/contexts/theme-context";
+import { THEMES, type ThemeId } from "@/lib/themes";
+import { Settings as SettingsIcon, User as UserIcon, Save, Camera, LogOut, Palette } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/settings")({
@@ -27,9 +29,11 @@ function SettingsPage() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const { setTheme } = useTheme();
   const [s, setS] = useState({
     focus: 25, short: 5, long: 15, interval: 4,
     sound: true, autobreak: false, dailyGoalMinutes: 60,
+    theme: "forest" as ThemeId,
   });
   const [busy, setBusy] = useState(false);
 
@@ -37,9 +41,12 @@ function SettingsPage() {
     if (profile) {
       setName(profile.display_name || "");
       setAvatarUrl(profile.avatar_url || null);
-      setS((prev) => ({ ...prev, ...profile.settings }));
+      const merged = { ...profile.settings };
+      setS((prev) => ({ ...prev, ...merged }));
+      const t = (merged.theme as ThemeId) || "forest";
+      setTheme(t);
     }
-  }, [profile]);
+  }, [profile, setTheme]);
 
   function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -139,6 +146,37 @@ function SettingsPage() {
               placeholder="Ismingiz..."
             />
           </label>
+        </div>
+      </div>
+
+      <div className="glass rounded-2xl p-5 mb-3">
+        <div className="text-xs uppercase tracking-wider text-muted-foreground mb-4 flex items-center gap-2">
+          <Palette className="w-3.5 h-3.5" /> Mavzu
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {THEMES.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => {
+                const next = { ...s, theme: t.id };
+                setS(next);
+                setTheme(t.id);
+                updateProfile({ settings: next });
+              }}
+              className={`flex items-center gap-2.5 p-3 rounded-xl border text-sm transition ${
+                (s.theme || "forest") === t.id
+                  ? "border-primary bg-primary/15 ring-1 ring-primary/40"
+                  : "border-border hover:bg-muted/50"
+              }`}
+            >
+              <span
+                className="w-6 h-6 rounded-full shrink-0 border border-border"
+                style={{ background: t.swatch }}
+              />
+              {t.name}
+            </button>
+          ))}
         </div>
       </div>
 
