@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { getProfile } from "@/lib/local-store";
 import { TreeArt } from "@/components/TreeArt";
 import { TREE_STAGES, stageForPlantedDate, nextStageProgress, diffDays, todayISO } from "@/lib/focus";
 import { Sparkles, Flame, CheckCircle2, Lock } from "lucide-react";
@@ -15,13 +15,10 @@ function TreePage() {
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
     enabled: !!user,
-    queryFn: async () => {
-      const { data } = await supabase.from("profiles").select("*").eq("id", user!.id).maybeSingle();
-      return data;
-    },
+    queryFn: () => getProfile(),
   });
 
-  const plantedAt = (profile?.tree_planted_at as string) ?? todayISO();
+  const plantedAt = profile?.tree_planted_at ?? todayISO();
   const daysSincePlanted = Math.max(0, diffDays(plantedAt, todayISO()));
   const streak = profile?.current_streak ?? 0;
   const stage = stageForPlantedDate(plantedAt);

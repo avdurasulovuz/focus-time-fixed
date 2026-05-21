@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { getTasks, addTask, toggleTask, removeTask } from "@/lib/local-store";
 import { Plus, Trash2, ListChecks, Circle, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -19,51 +19,30 @@ function TasksPage() {
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ["tasks", user?.id],
     enabled: !!user?.id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("tasks")
-        .select("*")
-        .eq("user_id", user!.id)
-        .order("created_at", { ascending: false });
-      if (error) {
-        console.error("Tasks query error:", error.message);
-        return [];
-      }
-      return data ?? [];
-    },
+    queryFn: () => getTasks(),
   });
 
-  async function add() {
+  function add() {
     if (!title.trim()) return;
-    if (!user) {
-      toast.error("Foydalanuvchi ma'lumotlari yuklanmadi. Sahifani yangilang.");
-      return;
-    }
-    const { error } = await supabase.from("tasks").insert({
-      user_id: user.id,
-      title: title.trim(),
-    });
-    if (error) { toast.error(error.message); return; }
+    addTask(title.trim());
     setTitle("");
-    qc.invalidateQueries({ queryKey: ["tasks", user.id] });
+    qc.invalidateQueries({ queryKey: ["tasks", user?.id] });
   }
 
-  async function toggle(id: string, done: boolean) {
-    const { error } = await supabase.from("tasks").update({ done: !done }).eq("id", id).eq("user_id", user!.id);
-    if (error) { toast.error(error.message); return; }
-    qc.invalidateQueries({ queryKey: ["tasks", user!.id] });
+  function toggle(id: string) {
+    toggleTask(id);
+    qc.invalidateQueries({ queryKey: ["tasks", user?.id] });
   }
 
-  async function remove(id: string) {
-    const { error } = await supabase.from("tasks").delete().eq("id", id).eq("user_id", user!.id);
-    if (error) { toast.error(error.message); return; }
-    qc.invalidateQueries({ queryKey: ["tasks", user!.id] });
+  function remove(id: string) {
+    removeTask(id);
+    qc.invalidateQueries({ queryKey: ["tasks", user?.id] });
   }
 
-  const filtered = tasks.filter((t: any) =>
+  const filtered = tasks.filter((t) =>
     filter === "all" ? true : filter === "done" ? t.done : !t.done
   );
-  const doneCount = tasks.filter((t: any) => t.done).length;
+  const doneCount = tasks.filter((t) => t.done).length;
 
   return (
     <div className="p-4 sm:p-8 max-w-3xl mx-auto">
@@ -118,9 +97,9 @@ function TasksPage() {
             </p>
           </div>
         )}
-        {filtered.map((t: any) => (
+        {filtered.map((t) => (
           <div key={t.id} className="glass rounded-xl p-3 flex items-center gap-3 group hover:border-primary/20 border border-transparent transition">
-            <button onClick={() => toggle(t.id, t.done)} className="flex-shrink-0">
+            <button onClick={() => toggle(t.id)} className="flex-shrink-0">
               {t.done
                 ? <CheckCircle2 className="w-5 h-5 text-primary" />
                 : <Circle className="w-5 h-5 text-muted-foreground hover:text-primary transition" />

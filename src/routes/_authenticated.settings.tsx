@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { getProfile, updateProfile, fileToDataUrl, deleteAllUserData } from "@/lib/local-store";
 import { Settings as SettingsIcon, User as UserIcon, Save, Camera, LogOut } from "lucide-react";
 import { toast } from "sonner";
 
@@ -20,15 +20,7 @@ function SettingsPage() {
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
     enabled: !!user?.id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user!.id)
-        .single();
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => getProfile(),
   });
 
   const [name, setName] = useState("");
@@ -44,8 +36,8 @@ function SettingsPage() {
   useEffect(() => {
     if (profile) {
       setName(profile.display_name || "");
-      setAvatarUrl((profile as any).avatar_url || null);
-      setS((prev) => ({ ...prev, ...(profile.settings as any) }));
+      setAvatarUrl(profile.avatar_url || null);
+      setS((prev) => ({ ...prev, ...profile.settings }));
     }
   }, [profile]);
 
@@ -63,48 +55,33 @@ function SettingsPage() {
     setBusy(true);
     try {
       let newAvatarUrl = avatarUrl;
-
-      // Upload avatar if changed
       if (avatarFile) {
-        const ext = avatarFile.name.split(".").pop() || "jpg";
-        const path = `avatars/${user.id}/avatar.${ext}`;
-        const { error: upErr } = await supabase.storage
-          .from("book-covers")
-          .upload(path, avatarFile, { upsert: true });
-        if (upErr) throw upErr;
-        const { data } = supabase.storage.from("book-covers").getPublicUrl(path);
-        newAvatarUrl = data.publicUrl;
+        newAvatarUrl = await fileToDataUrl(avatarFile);
       }
-
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          display_name: name,
-          settings: s as any,
-          ...(newAvatarUrl !== avatarUrl ? { avatar_url: newAvatarUrl } as any : {}),
-        })
-        .eq("id", user.id);
-
-      if (error) throw error;
+      updateProfile({
+        display_name: name,
+        settings: s,
+        ...(newAvatarUrl !== avatarUrl ? { avatar_url: newAvatarUrl } : {}),
+      });
       setAvatarUrl(newAvatarUrl);
       setAvatarFile(null);
       setAvatarPreview(null);
       toast.success("Saqlandi ✓");
       qc.invalidateQueries({ queryKey: ["profile"] });
-    } catch (e: any) {
-      toast.error(e.message || "Xatolik");
+    } catch {
+      toast.error("Xatolik");
     } finally {
       setBusy(false);
     }
   }
 
-  async function signOut() {
-    await supabase.auth.signOut();
-    window.location.href = "/login";
+  function signOut() {
+    deleteAllUserData();
+    window.location.href = "/app";
   }
 
   const displayAvatar = avatarPreview || avatarUrl;
-  const initials = name ? name.slice(0, 2).toUpperCase() : user?.email?.slice(0, 2).toUpperCase() || "FT";
+  const initials = name ? name.slice(0, 2).toUpperCase() : "FT";
 
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto pt-5">
@@ -115,13 +92,11 @@ function SettingsPage() {
         <h1 className="text-2xl font-display font-bold">Sozlamalar</h1>
       </div>
 
-      {/* Profile section with avatar */}
       <div className="glass rounded-2xl p-5 mb-3">
         <div className="text-xs uppercase tracking-wider text-muted-foreground mb-4 flex items-center gap-2">
           <UserIcon className="w-3.5 h-3.5" /> Profil
         </div>
 
-        {/* Avatar */}
         <div className="flex items-center gap-4 mb-4">
           <div className="relative">
             <div className="w-16 h-16 rounded-2xl overflow-hidden bg-primary/20 flex items-center justify-center border-2 border-border">
@@ -147,7 +122,7 @@ function SettingsPage() {
           </div>
           <div>
             <p className="font-medium text-sm">{name || "Ism belgilanmagan"}</p>
-            <p className="text-xs text-muted-foreground">{user?.email || "Anonim foydalanuvchi"}</p>
+            <p className="text-xs text-muted-foreground">Mahalliy saqlash</p>
             {avatarPreview && (
               <p className="text-xs text-primary mt-1">✓ Yangi rasm tanlandi</p>
             )}
@@ -167,7 +142,6 @@ function SettingsPage() {
         </div>
       </div>
 
-      {/* Reading time presets */}
       <div className="glass rounded-2xl p-5 mb-3">
         <div className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
           O'qish vaqti presetlari
@@ -190,7 +164,6 @@ function SettingsPage() {
         </div>
       </div>
 
-      {/* Pomodoro settings */}
       <div className="glass rounded-2xl p-5 mb-3">
         <div className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
           Pomodoro sozlamalari
@@ -230,7 +203,7 @@ function SettingsPage() {
         onClick={signOut}
         className="w-full mt-2 py-3 rounded-2xl bg-muted text-muted-foreground font-medium flex items-center justify-center gap-2 hover:bg-destructive/10 hover:text-destructive transition"
       >
-        <LogOut className="w-4 h-4" /> Chiqish
+        <LogOut className="w-4 h-4" /> Ma'lumotlarni tozalash
       </button>
 
       <style>{`
@@ -241,7 +214,7 @@ function SettingsPage() {
   );
 }
 
-function Field({ label, children }: any) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="flex items-center justify-between gap-4 flex-wrap">
       <span className="text-sm text-muted-foreground">{label}</span>

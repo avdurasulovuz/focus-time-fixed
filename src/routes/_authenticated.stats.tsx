@@ -1,9 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { getProfile, getWeekStats } from "@/lib/local-store";
 import { BarChart3, Flame, Clock, Brain, Trophy, Timer } from "lucide-react";
-import { Link } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_authenticated/stats")({
   component: StatsPage,
@@ -15,40 +14,13 @@ function StatsPage() {
   const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ["profile", user?.id],
     enabled: !!user?.id,
-    queryFn: async () => {
-      // maybeSingle() — yo'q bo'lsa null qaytaradi, xato bermaydi
-      const { data } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user!.id)
-        .maybeSingle();
-      return data;
-    },
+    queryFn: () => getProfile(),
   });
 
   const { data: week = [], isLoading: weekLoading } = useQuery({
     queryKey: ["weekStats", user?.id],
     enabled: !!user?.id,
-    queryFn: async () => {
-      const days: { date: string; label: string }[] = [];
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        days.push({
-          date: d.toISOString().slice(0, 10),
-          label: ["Yak", "Du", "Se", "Cho", "Pa", "Ju", "Sha"][d.getDay()],
-        });
-      }
-      const { data } = await supabase
-        .from("daily_stats")
-        .select("*")
-        .eq("user_id", user!.id)
-        .gte("date", days[0].date);
-      return days.map((d) => {
-        const row = (data ?? []).find((x: any) => x.date === d.date);
-        return { ...d, minutes: row?.focus_minutes ?? 0, pomos: row?.pomos ?? 0 };
-      });
-    },
+    queryFn: () => getWeekStats(),
   });
 
   const max = Math.max(60, ...week.map((d) => d.minutes));
@@ -99,7 +71,6 @@ function StatsPage() {
         <Card icon={Brain}  label="Jami pomodoro"   value={`${profile?.total_pomos ?? 0}`} />
       </div>
 
-      {/* Haftalik grafik */}
       <div className="glass rounded-3xl p-6 mb-4">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-display font-semibold text-lg">Haftalik fokus</h2>
@@ -128,7 +99,6 @@ function StatsPage() {
           ))}
         </div>
 
-        {/* Birinchi sessiya hali yo'q bo'lsa undaymiz */}
         {!hasAnyData && (
           <div className="mt-4 text-center py-6 border-t border-border">
             <Timer className="w-8 h-8 text-primary/50 mx-auto mb-2" />
@@ -139,13 +109,12 @@ function StatsPage() {
               to="/app"
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition"
             >
-              Pomodoroга o'tish
+              Pomodoroga o'tish
             </Link>
           </div>
         )}
       </div>
 
-      {/* Umumiy natijalar */}
       <div className="glass rounded-3xl p-5">
         <h2 className="font-display font-semibold text-base mb-4">Umumiy natijalar</h2>
         <div className="grid grid-cols-2 gap-3">
@@ -170,7 +139,7 @@ function StatsPage() {
   );
 }
 
-function Card({ icon: Icon, label, value }: any) {
+function Card({ icon: Icon, label, value }: { icon: React.ComponentType<{ className?: string }>; label: string; value: string }) {
   return (
     <div className="glass rounded-2xl p-4">
       <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-muted-foreground">

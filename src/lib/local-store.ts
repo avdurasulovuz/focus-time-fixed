@@ -128,6 +128,10 @@ export function getProfile(): Profile {
   if (!data.profile.settings) {
     data.profile.settings = { ...DEFAULT_SETTINGS };
   }
+  if (!data.profile.tree_planted_at) {
+    data.profile.tree_planted_at = todayISO();
+    saveRaw(data);
+  }
   return data.profile;
 }
 
