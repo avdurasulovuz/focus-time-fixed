@@ -200,9 +200,9 @@ export function addBook(book: Omit<Book, "id" | "user_id" | "created_at">): Book
     id: newId(),
     user_id: data.profile.id,
     created_at: new Date().toISOString(),
-    total_pages: 0,
-    pages_read: 0,
     ...book,
+    total_pages: book.total_pages ?? 0,
+    pages_read: book.pages_read ?? 0,
   };
   data.books.unshift(b);
   saveRaw(data);

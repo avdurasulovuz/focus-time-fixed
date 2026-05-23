@@ -2,7 +2,16 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { getProfile, getWeekStats } from "@/lib/local-store";
-import { BarChart3, Flame, Clock, Brain, Trophy, Timer, PieChart as PieChartIcon } from "lucide-react";
+import {
+  BarChart3,
+  Flame,
+  Clock,
+  Brain,
+  Trophy,
+  Timer,
+  PieChart as PieChartIcon,
+  type LucideIcon,
+} from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 
 export const Route = createFileRoute("/_authenticated/stats")({
@@ -195,7 +204,7 @@ function StatsPage() {
   );
 }
 
-function Card({ icon: Icon, label, value }: { icon: React.ComponentType<{ className?: string }>; label: string; value: string }) {
+function Card({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
   return (
     <div className="glass rounded-2xl p-4">
       <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-muted-foreground">

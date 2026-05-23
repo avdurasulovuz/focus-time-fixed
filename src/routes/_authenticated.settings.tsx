@@ -42,8 +42,8 @@ function SettingsPage() {
       setName(profile.display_name || "");
       setAvatarUrl(profile.avatar_url || null);
       const merged = { ...profile.settings };
-      setS((prev) => ({ ...prev, ...merged }));
       const t = (merged.theme as ThemeId) || "forest";
+      setS((prev) => ({ ...prev, ...merged, theme: t }));
       setTheme(t);
     }
   }, [profile, setTheme]);
